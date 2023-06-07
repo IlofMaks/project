@@ -75,11 +75,11 @@ class Record:
 
         self.email = email
         if email is not None:
-            self.add_email(phone)
+            self.add_email(email)
 
         self.birthday = birthday
-        if email is not None:
-            self.add_email(phone)
+        if birthday is not None:
+            self.add_birthday(birthday)
 
     def add_address(self, address: Address):
         self.address = address
@@ -189,6 +189,20 @@ class AddressBook(UserDict):
 
 address_book = AddressBook()
 
+def validate_date(date_str):
+    pattern = r"^\d{4}\.\d{2}\.\d{2}$"
+    if not re.match(pattern,date_str):
+        raise ValueError("Invalid format, please use YYYY.MM.DD")
+    
+def validate_phone(phone_str):
+    pattern = r"^\+\d{2}\(\d{3}\)\d{7}$"
+    if not re.match(pattern, phone_str):
+        raise ValueError("Invalid format, please use +38(099)1234567")
+    
+def validate_email(email_str):
+    pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    if not re.match(pattern, email_str):
+        raise ValueError("Invalid format email")
 
 def copy_class_addressbook(address_book):
     return deepcopy(address_book)
@@ -219,19 +233,39 @@ def contact_adder() -> str:
     address = input('Enter address or press Enter to skip: ')
     if address:
         record.add_address(address)
-
-    phone = input('Enter phone (ex. +38(099)9119119) or press Enter to skip: ')
-    if phone:
-        record.add_phone(phone)
-
-    email = input('Enter email or press Enter to skip: ')
-    if email:
-        record.add_email(email)
-
-    birthday = input(
-        'Enter birthday (ex. 2023.12.25) or press Enter to skip: ')
-    if birthday:
-        record.add_birthday(birthday)
+    while True:
+        phone = input('Enter phone (ex. +38(099)9119119) or press Enter to skip: ')
+        if not phone:
+            break
+        try:
+            validate_phone(phone)
+        except ValueError as e:
+            print(e)
+        else:
+            record.add_phone(phone)
+            break
+    while True:
+        email = input('Enter email or press Enter to skip: ')
+        if not email:
+            break
+        try:
+            validate_email(email)
+        except ValueError as e:
+            print(e)
+        else:
+            record.add_email(email)
+            break
+    while True:
+        birthday = input('Enter birthday (ex. 2023.12.25) or press Enter to skip: ')
+        if not birthday:
+            break
+        try:
+            validate_date(birthday)
+        except ValueError as e:
+            print(e)
+        else:
+            record.add_birthday(birthday)
+            break
 
     address_book.add_record(record)
 
@@ -329,13 +363,20 @@ def show_all_notes() -> str:
                 return f'{str(list(address_book.notes.values())[-1])}\nEnd of records\n'
     else:
         return 'No records, please add\n'
-def contact_search(name: str) -> str:
+def contact_search() -> str:
+    name = input('Enter contact name: ')
+    name = name.lower()
+    search_contacts = []
     for record in address_book.records.values():
-        if record.name.name == name:
-            return f'Contact found:\n{record}\n'
+        if name in record.name.name.lower():
+            search_contacts.append(record)
+    if search_contacts:
+        contacts_info = '\n'.join(str(record) for record in search_contacts)
+        return f'Contact found:\n{contacts_info}\n'
     return f'Contact "{name}" not found'
     
-def contact_modifier(name: str):
+def contact_modifier():
+    name = input('Enter contact name: ')
     for record_name, contact in address_book.records.items():
         if contact.name.name == name:
             print(f'Current contact information:\n{contact}')
@@ -363,7 +404,8 @@ def contact_modifier(name: str):
     return f'Contact "{name}" not found'
 
 
-def contact_remover(name: str) -> str:
+def contact_remover() -> str:
+    name = input('Enter contact name: ')
     for record_name, record in address_book.records.items():
         if record.name.name == name:
             del address_book.records[record_name]
@@ -371,10 +413,12 @@ def contact_remover(name: str) -> str:
     return f'Contact "{name}" not found.'
 
 
-def days_to_birthdays(days: int) -> str:
+def days_to_birthdays() -> str:
+    days = int(input('Enter the number of days: '))
     today = date.today()
     contacts_in_days = []
-
+    has_birthday = False
+    
     for record in address_book.records.values():
         if record.birthday is not None:
             dob = datetime.strptime(record.birthday.birthday, "%Y.%m.%d").date()
@@ -386,13 +430,13 @@ def days_to_birthdays(days: int) -> str:
             days_to_birthday = (dob_this_year - today).days
             if days_to_birthday <= days:
                contacts_in_days.append(record)
-            if len(contacts_in_days) == 0:
-                return "No contacts with upcoming birthdays."
-            result = f"Contacts with upcoming birthdays in the next {days} days:\n"
-            for record in contacts_in_days:
-                result += str(record) + "\n"
-
-    return result
+               has_birthday = True
+        if not has_birthday:
+            return "No contacts with upcoming birthdays."
+        result = f"Contacts with upcoming birthdays in the next {days} days:\n"
+        for record in contacts_in_days:
+            result += str(record) + "\n"
+            return result
 
 
 
@@ -434,20 +478,10 @@ def main():
             result = unknown_command(phrase)
         else:
             handler = commands.get(command)[0]
-            if command == 'search':
-                name = input('Enter contact name: ')
-                result = handler(name)
-            elif command == 'modify' or command == 'remove':
-                name = input('Enter contact name: ')
-                result = handler(name)
-            elif command == 'to birthdays':
-                days = int(input('Enter the number of days: '))
-                result = days_to_birthdays(days)
-            else:
-                result = handler()
-                if result == 'Goodbye!':
-                    print(result)
-                    break
+            result = handler()
+            if result == 'Goodbye!':
+                print(result)
+                break
         print(result)
 
 
