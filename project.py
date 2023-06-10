@@ -1,8 +1,10 @@
 import pickle
 import re
 from collections import UserDict
-from datetime import datetime, date
+from datetime import datetime
 from copy import deepcopy
+import os
+import shutil
 
 
 class Name():
@@ -25,6 +27,10 @@ class Phone():
     def __init__(self, phone: str) -> None:
         self.phone = phone
 
+    def phone_validator(phone: str):
+        if re.fullmatch(r'\+[\d]{2}\([\d]{3}\)[\d]{7}', phone):
+            return True
+
     def __str__(self) -> str:
         return f'{self.phone}'
 
@@ -33,13 +39,24 @@ class Email():
     def __init__(self, email: str) -> None:
         self.email = email
 
+    def email_validator(email: str):
+        if re.fullmatch(r'[a-zA-Z]{1}[\w\.]+@[a-zA-Z]+\.[a-zA-Z]{2,3}', email):
+            return True
+
     def __str__(self) -> str:
         return f'{self.email}'
 
 
 class Birthday():
     def __init__(self, birthday: str) -> None:
-        self.birthday = birthday
+        self.birthday = datetime.strptime(birthday, '%Y.%m.%d').date()
+
+    def date_validator(birthday: str):
+        try:
+            if 100*365 > (datetime.today() - datetime.strptime(birthday, '%Y.%m.%d')).days > 0:
+                return True
+        except:
+            None
 
     def __str__(self) -> str:
         return f'{self.birthday}'
@@ -62,7 +79,7 @@ class Note():
 
 
 class Record:
-    def __init__(self, name: Name, address: Address = None, phone: Phone = None, email: Email = None, birthday: Birthday = None):
+    def __init__(self, name: Name, address: Address = None, phone: list[Phone] = None, email: Email = None, birthday: Birthday = None):
         self.name = name
 
         self.address = address
@@ -71,22 +88,21 @@ class Record:
 
         self.phones = []
         if phone is not None:
-            self.add_phone(phone)
+            for p in phone:
+                self.add_phone(p)
 
         self.email = email
         if email is not None:
-            self.add_email(email)
+            self.add_email(phone)
 
         self.birthday = birthday
-        if birthday is not None:
-            self.add_birthday(birthday)
+        if email is not None:
+            self.add_email(phone)
 
     def add_address(self, address: Address):
         self.address = address
 
-    def add_phone(self, phone: Phone | str):
-        if isinstance(phone, str):
-            phone = self.create_phone(phone)
+    def add_phone(self, phone: Phone):
         self.phones.append(phone)
 
     def add_email(self, email: Email):
@@ -98,7 +114,7 @@ class Record:
     def create_phone(self, phone: str):
         return Phone(phone)
 
-    def show(self):         # returns phones in beautiful formating
+    def show(self):         # returns phones in nice formating
         if self.phones:
             result = ''
             for inx, p in enumerate(self.phones):
@@ -108,7 +124,7 @@ class Record:
         return result
 
     def __str__(self) -> str:
-        return f'Contact Name: {self.name},\nAddress: {self.address},\nPhones: {self.show()},\nEmail: {self.email},\nBirthday: {self.birthday}\n'
+        return f'Name:     {self.name},\nAddress:  {self.address},\nPhones:   {self.show()},\nEmail:    {self.email},\nBirthday: {self.birthday}\n'
 
 
 class Notice:
@@ -131,7 +147,7 @@ class Notice:
     def create_note(self, note: str):
         return Note(note)
 
-    def show(self):         # returns notes in beautiful formating
+    def show(self):         # returns notes in nice formating
         if self.notes:
             result = ''
             for inx, n in enumerate(self.notes):
@@ -156,23 +172,41 @@ class AddressBook(UserDict):
             self.add_notice(notice)
 
     def add_record(self, record: Record):
-        self.records[record.name] = record
+        self.records[record.name.name] = record
 
     def add_notice(self, notice: Notice):
-        self.notes[notice.hashtag] = notice
+        self.notes[notice.hashtag.hashtag] = notice
+
+    def note_searcher(self, keyword: str):
+        result = []
+        for notice in self.notes.values():
+            for note in notice.notes:
+                if keyword.lower() in note.note.lower():
+                    result.append(note)
+        return result
+
+    def hashtag_searcher(self, keyword: str):
+        result = []
+        for notice in self.notes.values():
+            if keyword.lower() in notice.hashtag.hashtag.lower():
+                result.append(notice)
+        return result
+
+    def sort_notes(self):
+        sorted_notes = sorted(self.notes.values(),
+                              key=lambda notice: str(notice.hashtag))
+        return sorted_notes
 
     def iterator(self, N, essence):
         counter = 0
-        result = f'\nPrinting {N} records'
+        result = f'\nPrinting {N} contacts'
         for item, record in self.essence.items():
             result += f'\n{str(record)}'
             counter += 1
             if counter >= N:
                 yield result
                 counter = 0
-                result = f'\nPrinting next {N} records'
-
-
+                result = f'\nPrinting next {N} contacts'
 
     def __str__(self) -> str:
         return '\n'.join(str(record) for record in self.records.values())
@@ -189,27 +223,16 @@ class AddressBook(UserDict):
 
 address_book = AddressBook()
 
-def validate_date(date_str):
-    pattern = r"^\d{4}\.\d{2}\.\d{2}$"
-    if not re.match(pattern,date_str):
-        raise ValueError("Invalid format, please use YYYY.MM.DD")
-    
-def validate_phone(phone_str):
-    pattern = r"^\+\d{2}\(\d{3}\)\d{7}$"
-    if not re.match(pattern, phone_str):
-        raise ValueError("Invalid format, please use +38(099)1234567")
-    
-def validate_email(email_str):
-    pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-    if not re.match(pattern, email_str):
-        raise ValueError("Invalid format email")
+
+# General functionality
+
 
 def copy_class_addressbook(address_book):
     return deepcopy(address_book)
 
 
 def unknown_command(command: str) -> str:
-    return f'\nUnknown command "{command}"'
+    return f'\nUnknown command "{command}"\n'
 
 
 def hello_user() -> str:
@@ -220,56 +243,113 @@ def exit_func() -> str:
     a = input('Would you like to save changes (Y/N)? ')
     if a == 'Y' or a == 'y':
         print(saver())
-    return 'Goodbye!'
+    return 'Goodbye!\n'
+
+
+def saver() -> str:
+    if address_book.records:
+        with open('backup.dat', 'wb') as file:
+            pickle.dump(address_book, file)
+        return '\nAddress Book successfully saved to backup.dat'
+    else:
+        return '\nAddress Book is empty, no data to be saved to file'
+
+
+def loader() -> str:
+    try:
+        with open('backup.dat', 'rb') as file:
+            global address_book
+            address_book = pickle.load(file)
+        return '\nAddress Book successfully loaded from backup.dat\n'
+    except:
+        return ''
+
+
+def helper():
+    result = 'List of all supported commands:\n\n'
+    for key in commands:
+        result += '{:<13} {:<50}\n'.format(key, commands[key][1])
+    return result
+
+
+# Contacts processing
+
+
+def phone_adder(record) -> None:
+    while True:
+        phone = input(
+            'Enter phone (ex. +38(099)1234567) or press Enter to skip: ')
+        if phone == '':
+            break
+        elif Phone.phone_validator(phone) == True:
+            record.add_phone(Phone(phone))
+            break
+        else:
+            print('Wrong phone format')
+
+
+def email_adder(record) -> None:
+    while True:
+        email = input('Enter email or press Enter to skip: ')
+        if email == '':
+            break
+        elif Email.email_validator(email) == True:
+            record.add_email(Email(email))
+            break
+        else:
+            print('Wrong email format')
+
+
+def birthday_adder(record) -> None:
+    while True:
+        birthday = input(
+            'Enter birthday (ex. 2023.12.25) or press Enter to skip: ')
+        if birthday == '':
+            break
+        elif Birthday.date_validator(birthday) == True:
+            record.add_birthday(Birthday(birthday))
+            break
+        else:
+            print('Wrong date format')
 
 
 def contact_adder() -> str:
     name = input('Enter contact name (obligatory field): ')
-    if name in address_book.records.keys():
-        return f'Contact {name} already exists'
+    while True:
+        if name == '':
+            name = input(
+                'Contact name cannot be empty, enter contact name o Enter to exit: ')
+            if name == '':
+                return 'Adding new contact was skipped\n'
+        elif name in address_book.records.keys():
+            name = input(
+                f'Contact "{name}" already exists, enter new name o press Enter to exit: ')
+            if name == '':
+                return 'Adding new contact was skipped\n'
+        else:
+            break
 
     record = Record(Name(name))
 
     address = input('Enter address or press Enter to skip: ')
     if address:
-        record.add_address(address)
+        record.add_address(Address(address))
+
     while True:
-        phone = input('Enter phone (ex. +38(099)9119119) or press Enter to skip: ')
-        if not phone:
+        phone = input('Enter phone (ex. +38(099)1234567) or press Enter to skip: ')
+        if phone == '':
             break
-        try:
-            validate_phone(phone)
-        except ValueError as e:
-            print(e)
+        elif Phone.phone_validator(phone) == True:
+            record.add_phone(Phone(phone))
         else:
-            record.add_phone(phone)
-            break
-    while True:
-        email = input('Enter email or press Enter to skip: ')
-        if not email:
-            break
-        try:
-            validate_email(email)
-        except ValueError as e:
-            print(e)
-        else:
-            record.add_email(email)
-            break
-    while True:
-        birthday = input('Enter birthday (ex. 2023.12.25) or press Enter to skip: ')
-        if not birthday:
-            break
-        try:
-            validate_date(birthday)
-        except ValueError as e:
-            print(e)
-        else:
-            record.add_birthday(birthday)
-            break
+            print('Wrong phone format')
+            
+    email_adder(record)
+    birthday_adder(record)
 
     address_book.add_record(record)
 
-    return f'\nAdded {record}'
+    return f'\nAdded contact\n{record}'
 
 
 def show_all_contacts() -> str:
@@ -296,30 +376,166 @@ def show_all_contacts() -> str:
         return 'No contacts, please add\n'
 
 
-def saver() -> str:
-    if address_book.records:
-        with open('backup.dat', 'wb') as file:
-            pickle.dump(address_book, file)
-        return '\nAddress Book successfully saved to backup.dat\n'
-    else:
-        return '\nAddress Book is empty, no data to be saved to file\n'
+def contact_search() -> str:
+    search_query = input('Enter search query: ')
+    search_query = search_query.lower()
+    
+    search_results = []
+    for record in address_book.records.values():
+        if (record.name.name and search_query in record.name.name.lower()) or \
+           (record.address and search_query in record.address.lower()) or \
+           (record.email and search_query in record.email.lower()) or \
+           (record.birthday and search_query in str(record.birthday)) or \
+            any(search_query in phone.phone for phone in record.phones):
+            search_results.append(record)
+    
+    if search_results:
+        contacts_info = '\n'.join(str(record) for record in search_results)
+        return f'\nContacts found:\n{contacts_info}'
+    
+    return f'No contacts found for "{search_query}"'
 
 
-def loader() -> str:
-    try:
-        with open('backup.dat', 'rb') as file:
-            global address_book
-            address_book = pickle.load(file)
-        return '\nAddress Book successfully loaded from backup.dat\n'
-    except:
-        return ''
+
+def contact_modifier():
+    name = input('Enter contact name: ')
+    for record_name, contact in address_book.records.items():
+        if contact.name.name == name:
+            print(f'Current contact information:\n{contact}')
+            field = input(
+                'Enter the field you want to modify (name/address/phone/email/birthday): ')
+            
+            if field.lower() == 'name':
+                value = input('Enter the new value: ')
+                contact.name.name = value
+                address_book.records[value] = contact
+                del address_book.records[record_name]
+                return f'Contact "{name}" has been modified. New name: "{value}"'
+            elif field.lower() == 'address':
+                value = input('Enter the new value: ')
+                contact.address = Address(value)
+                return f'Contact "{name}" has been modified. New address: "{value}"'
+            elif field.lower() == 'phone':
+                phone_count = len(contact.phones)
+                if phone_count == 0:
+                    action = input('Enter "add" to add a new phone number: ')
+                    if action.lower() == 'add':
+                        phone = input('Enter the new phone number (ex. +38(099)1234567): ')
+                        if Phone.phone_validator(phone):
+                            contact.phones.append(Phone(phone))
+                            return f'Contact "{name}" has been modified. New phone number added: {phone}'
+                        else:
+                            return 'Wrong phone format'
+                    else:
+                        return 'Invalid action. Modification failed.'
+                else:
+                    print('Current phone numbers:')
+                    for i, phone in enumerate(contact.phones):
+                        print(f'{i + 1}. {phone}')
+                    selection = int(input(f'Select the phone number you want to modify or enter "{phone_count + 1}" to add a new phone number: '))
+                    if 1 <= selection <= phone_count:
+                        action = input('Enter "replace" to replace the phone number: ')
+                        if action.lower() == 'replace':
+                            phone = input('Enter the new phone number (ex. +38(099)1234567): ')
+                            if Phone.phone_validator(phone):
+                                contact.phones[selection - 1] = Phone(phone)
+                                return f'Contact "{name}" has been modified. New phone number: {phone}'
+                            else:
+                                return 'Wrong phone format'
+                        else:
+                            return 'Invalid action. Modification failed.'
+                    elif selection == phone_count + 1:
+                        phone = input('Enter the new phone number (ex. +38(099)1234567): ')
+                        if Phone.phone_validator(phone):
+                            contact.phones.append(Phone(phone))
+                            return f'Contact "{name}" has been modified. New phone number added: {phone}'
+                        else:
+                            return 'Wrong phone format'
+                    else:
+                        return 'Invalid selection. Modification failed.'
+                    
+            elif field.lower() == 'email':
+                value = input('Enter the new value: ')
+                if Email.email_validator(value) == True:
+                    contact.email = Email(value)
+                    return f'Contact "{name}" has been modified. New email: "{value}"'
+                else:
+                    return 'Wrong email format'
+            elif field.lower() == 'birthday':
+                value = input('Enter the new value: ')
+                if Birthday.date_validator(value) == True:
+                    contact.birthday = Birthday(value)
+                    return f'Contact "{name}" has been modified. New birthday: "{value}"'
+                else:
+                    return 'Wrong date format'
+            else:
+                return 'Invalid field name. Modification failed.'
+    return f'Contact "{name}" not found'
 
 
-def helper():
-    result = 'List of all supported commands:\n\n'
-    for key in commands:
-        result += '{:<13} {:<50}\n'.format(key, commands[key][1])
-    return result
+def contact_remover() -> str:
+    name = input('Enter contact name: ')
+    for record_name, record in address_book.records.items():
+        if record.name.name == name:
+            print(f'Contact found: {record.name.name}')
+            choice = input('Enter the field to remove (1- contact, 2 - number, 3 - email, 4 - adress, 5 - birthday) ')
+            if choice == '1':
+                del address_book.records[record_name]
+                return f'Contact "{name} has been removed'
+            elif choice == '2':
+                print('Phone numbers:')
+                for i, phone in enumerate(record.phones):
+                    print(f'{i+1}. {phone}')
+                phone_choice = int(input('Enter the number of the phone to remove, or enter 0 to remove all phone numbers: '))
+                if phone_choice == 0:
+                    record.phones = []
+                    return f'All phone numbers removed from contact {name}'
+                elif 1 <= phone_choice <= len(record.phones):
+                    del record.phones[phone_choice - 1]
+                    return f'Phone number {phone_choice} removed from contact {name}'
+                else:
+                    return 'Invalid phone number choice'
+            elif choice == '3':
+                record.email = None
+                return f'Email removed from contact {name}'
+            elif choice == '4':
+                record.address = None
+                return f'Address removed from contact {name}'
+            elif choice == '5':
+                record.birthday = None
+                return f'Birthday removed from contact {name}'
+            else:
+                return f'Invalid choice'
+        return f'Contact "{name}" not found'
+
+
+def days_to_birthdays() -> str:
+    days = int(input('Enter the number of days: '))
+    today = datetime.today().date()
+    contacts_in_days = []
+    has_birthday = False
+
+    for record in address_book.records.values():
+        if record.birthday is not None:
+            dob = record.birthday.birthday
+            dob_this_year = dob.replace(year=today.year)
+
+            if dob_this_year < today:
+                dob_this_year = dob_this_year.replace(year=today.year + 1)
+
+            days_to_birthday = (dob_this_year - today).days
+            if days_to_birthday <= days:
+                contacts_in_days.append(record)
+                has_birthday = True
+        if not has_birthday:
+            return "\nNo contacts with upcoming birthdays\n"
+        result = f"\nContacts with upcoming birthdays in the next {days} days:"
+        for record in contacts_in_days:
+            result += '\n' + str(record)
+            return result
+
+
+# Notes processing
 
 
 def note_adder():
@@ -330,11 +546,11 @@ def note_adder():
     if not hashtag:
         hashtag = '#None'
 
-    notice = Notice(Note(hashtag))
+    notice = Notice(Hashtag(hashtag))
 
     note = input('Enter note: ')
     if note:
-        notice.add_note(note)
+        notice.add_note(Note(note))
 
     address_book.add_notice(notice)
 
@@ -363,105 +579,116 @@ def show_all_notes() -> str:
                 return f'{str(list(address_book.notes.values())[-1])}\nEnd of records\n'
     else:
         return 'No records, please add\n'
-def contact_search() -> str:
-    name = input('Enter contact name: ')
-    name = name.lower()
-    search_contacts = []
-    for record in address_book.records.values():
-        if name in record.name.name.lower():
-            search_contacts.append(record)
-    if search_contacts:
-        contacts_info = '\n'.join(str(record) for record in search_contacts)
-        return f'Contact found:\n{contacts_info}\n'
-    return f'Contact "{name}" not found'
-    
-def contact_modifier():
-    name = input('Enter contact name: ')
-    for record_name, contact in address_book.records.items():
-        if contact.name.name == name:
-            print(f'Current contact information:\n{contact}')
-            field = input('Enter the field you want to modify (name/address/phone/email/birthday): ')
-            value = input('Enter the new value: ')
-            if field.lower() == 'name':
-                contact.name.name = value
-                address_book.records[value] = contact
-                del address_book.records[record_name]
-                return f'Contact "{name}" has been modified. New name: "{value}"'
-            elif field.lower() == 'address':
-                contact.address = value
-                return f'Contact "{name}" has been modified. New address: "{value}"'
-            elif field.lower() == 'phone':
-                contact.phones = [Phone(value)]
-                return f'Contact "{name}" has been modified. New phone number: "{value}"'
-            elif field.lower() == 'email':
-                contact.email = value
-                return f'Contact "{name}" has been modified. New email: "{value}"'
-            elif field.lower() == 'birthday':
-                contact.birthday = Birthday(value)
-                return f'Contact "{name}" has been modified. New birthday: "{value}"'
-            else:
-                return 'Invalid field name. Modification failed.'
-    return f'Contact "{name}" not found'
 
 
-def contact_remover() -> str:
-    name = input('Enter contact name: ')
-    for record_name, record in address_book.records.items():
-        if record.name.name == name:
-            del address_book.records[record_name]
-            return f'Contact "{name}" has been removed.'
-    return f'Contact "{name}" not found.'
+def note_search_handler():
+    keyword = input('Enter a keyword to search: ')
+    if keyword:
+        result = address_book.note_searcher(keyword)
+        if result:
+            return f'\nFound {len(result)} notes:\n' + '\n'.join(str(note) for note in result)
+        else:
+            return 'No notes found.'
+    else:
+        return 'Keyword cannot be empty.'
 
 
-def days_to_birthdays() -> str:
-    days = int(input('Enter the number of days: '))
-    today = date.today()
-    contacts_in_days = []
-    has_birthday = False
-    
-    for record in address_book.records.values():
-        if record.birthday is not None:
-            dob = datetime.strptime(record.birthday.birthday, "%Y.%m.%d").date()
-            dob_this_year = dob.replace(year=today.year)
-
-            if dob_this_year < today:
-                dob_this_year = dob_this_year.replace(year=today.year + 1)
-
-            days_to_birthday = (dob_this_year - today).days
-            if days_to_birthday <= days:
-               contacts_in_days.append(record)
-               has_birthday = True
-        if not has_birthday:
-            return "No contacts with upcoming birthdays."
-        result = f"Contacts with upcoming birthdays in the next {days} days:\n"
-        for record in contacts_in_days:
-            result += str(record) + "\n"
-            return result
+def hashtag_search_handler():
+    keyword = input('Enter a hashtag to search: ')
+    if keyword:
+        result = address_book.hashtag_searcher(keyword)
+        if result:
+            return f'\nFound {len(result)} notes:\n' + '\n'.join(str(note) for note in result)
+        else:
+            return 'No notes found.'
+    else:
+        return 'Hashtag cannot be empty.'
 
 
+def sort_notes_handler():
+    sorted_notes = address_book.sort_notes()
+    if sorted_notes:
+        return f'\nSorted notes:\n' + '\n'.join(str(note) for note in sorted_notes)
+    else:
+        return 'No notes found.'
+
+
+# File sorting
+
+
+def sort_files():
+    folder_path = input(
+        "Enter the absolute path of the folder you want to sort (example: C:\Desktop\project): ")
+    folder_path = folder_path.strip()
+
+    if not os.path.isdir(folder_path):
+        return "Invalid folder path."
+
+    categorized_files = {}
+
+    for file_name in os.listdir(folder_path):
+        if os.path.isfile(os.path.join(folder_path, file_name)):
+            if file_name in ("butler.py", "backup.dat"):
+                continue
+
+            file_extension = os.path.splitext(file_name)[1]
+            category = "Other"
+            if file_extension in (".jpg", ".png", ".gif"):
+                category = "Images"
+            elif file_extension in (".doc", ".docx", ".pdf"):
+                category = "Documents"
+            elif file_extension in (".mp4", ".avi", ".mov"):
+                category = "Videos"
+
+            if category not in categorized_files:
+                categorized_files[category] = []
+
+            categorized_files[category].append(file_name)
+
+    if not categorized_files:
+        return "No files found for sorting."
+
+    for category in categorized_files.keys():
+        category_folder = os.path.join(folder_path, category)
+        os.makedirs(category_folder, exist_ok=True)
+
+    for category, files in categorized_files.items():
+        category_folder = os.path.join(folder_path, category)
+        for file_name in files:
+            source_path = os.path.join(folder_path, file_name)
+            destination_path = os.path.join(category_folder, file_name)
+            shutil.move(source_path, destination_path)
+
+    return "File sorting completed successfully."
 
 
 commands = {
     'hello':        (hello_user,            ' -> just greating'),
-    'add contact':  (contact_adder,         ' -> adds new contact'),
-    '+c':           (contact_adder,         ' -> adds new contact (short command)'),
-    'show contacts': (show_all_contacts,    ' -> shows all contacts'),
-    '?c':           (show_all_contacts,     ' -> shows all contacts (short command)'),
     'exit':         (exit_func,             ' -> exit from the bot with or without saving'),
     'close':        (exit_func,             ' -> exit from the bot with or without saving'),
     'save':         (saver,                 ' -> saves to file all changes'),
     'load':         (loader,                ' -> loads last version of the Address Book'),
     'help':         (helper,                ' -> shows the list of all supported commands'),
+    'add contact':  (contact_adder,         ' -> adds new contact'),
+    '+c':           (contact_adder,         ' -> adds new contact (short command)'),
+    'show contacts': (show_all_contacts,    ' -> shows all contacts'),
+    '?c':           (show_all_contacts,     ' -> shows all contacts (short command)'),
+    'search':       (contact_search,        ' -> search for a contact by name'),
+    'modify':       (contact_modifier,      ' -> modify an existing contact'),
+    'remove':       (contact_remover,       ' -> remove an existing contact'),
+    'to birthdays': (days_to_birthdays,     ' -> days to birthgays'),
     'add note':     (note_adder,            ' -> adds note with o without hashtag'),
     '+n':           (note_adder,            ' -> adds note with o without hashtag (short command)'),
     'show notes':   (show_all_notes,        ' -> shows all notes'),
     '?n':           (show_all_notes,        ' -> shows all notes (short command)'),
-    'search':       (contact_search,        ' -> search for a contact by name'),
-    'modify':       (contact_modifier,      ' -> modify an existing contact'),
-    'remove':       (contact_remover,       ' -> remove an existing contact'),
-    'to birthdays': (days_to_birthdays,     '-> days to birthgays'),
+    'search notes': (note_search_handler,   ' -> searches for notes containing a keyword'),
+    '?s':           (note_search_handler,   ' -> searches for notes containing a keyword (short command)'),
+    'search hashtag': (hashtag_search_handler, ' -> search notes by hashtag'),
+    '?h':           (hashtag_search_handler, ' -> search notes by hashtag (short command)'),
+    'sort notes':   (sort_notes_handler,    ' -> sort notes by title'),
+    'so':           (sort_notes_handler,    ' -> sort notes by title (short command)'),
+    'sort files':   (sort_files,            ' -> sorts files into categories'),
 }
-
 
 
 def main():
@@ -479,7 +706,7 @@ def main():
         else:
             handler = commands.get(command)[0]
             result = handler()
-            if result == 'Goodbye!':
+            if result == 'Goodbye!\n':
                 print(result)
                 break
         print(result)
